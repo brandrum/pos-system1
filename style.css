@@ -499,3 +499,377 @@ label{font-size:12px;color:var(--muted);display:block;margin-bottom:6px}
   color: #FFFFFF !important;
   border: 1px solid rgba(255,255,255,0.08) !important;
 }
+
+
+/* Quotation print preview card */
+.print-sheet { background: rgba(255,255,255,0.04); padding: 12px; border-radius: 12px; }
+.q-header { display:flex; justify-content:space-between; align-items:center; gap: 10px; margin-bottom: 8px; }
+.q-left { display:flex; align-items:center; gap: 10px; }
+.q-name { font-size: 16px; font-weight: 900; }
+.q-meta { font-size: 12px; color: var(--muted); }
+.q-to { margin: 6px 0 10px 0; }
+.q-notes { margin-top: 8px; }
+@media print {
+  @page { size: A5; margin: 8mm; }
+  .topbar, .sidebar, .footer-bar { display:none !important; }
+  body { background: #fff !important; color: #000 !important; }
+  .card { box-shadow: none !important; border: none !important; }
+}
+
+
+/* Custom styled dropdowns */
+select.input {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-color: #fff;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 6px 28px 6px 8px;
+  font-size: 14px;
+  line-height: 1.4;
+  background-image: url("data:image/svg+xml;utf8,<svg fill='%23007bff' height='20' viewBox='0 0 24 24' width='20' xmlns='http://www.w3.org/2000/svg'><path d='M7 10l5 5 5-5z'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+  background-size: 16px 16px;
+}
+
+select.input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
+}
+
+
+/* === Final Icon button styles (25px icons, 20px gap) === */
+.action-icons {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+}
+.icon-btn {
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.icon-btn.edit { background: #2563eb; color: #fff; }
+.icon-btn.delete { background: #ef4444; color: #fff; }
+.icon-btn:hover { transform: scale(1.2); box-shadow: 0 4px 10px rgba(0,0,0,0.25); }
+.icon-btn svg { width: 18px; height: 18px; fill: currentColor; }
+
+
+/* === Global table font size for all POS tables (12px) === */
+table th, table td {
+  font-size: 12px !important;
+  padding: 6px 8px;
+}
+
+/* Ensure invoice/quotation icons same style as inventory */
+.action-icons {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+}
+.icon-btn {
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.icon-btn.edit { background: #2563eb; color: #fff; }
+.icon-btn.delete { background: #ef4444; color: #fff; }
+.icon-btn:hover { transform: scale(1.2); box-shadow: 0 4px 10px rgba(0,0,0,0.25); }
+.icon-btn svg { width: 18px; height: 18px; fill: currentColor; }
+
+.action-btn {
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin: 0 4px;
+  color: #fff;
+  font-size: 14px;
+}
+
+.action-btn.edit {
+  background-color: #2563eb; /* blue */
+}
+
+.action-btn.delete {
+  background-color: #dc2626; /* red */
+}
+
+/* Unified action buttons */
+.action-btn {
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin: 0 4px;
+  color: #fff;
+  font-size: 14px;
+}
+
+.action-btn.edit {
+  background-color: #2563eb; /* blue */
+}
+
+.action-btn.delete {
+  background-color: #dc2626; /* red */
+}
+
+/* Unified action buttons across Invoice & Inventory */
+.action-btn {
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin: 0 4px;
+  color: #fff;
+  font-size: 14px;
+}
+
+.action-btn.edit {
+  background-color: #2563eb; /* blue */
+}
+
+.action-btn.delete {
+  background-color: #dc2626; /* red */
+}
+
+.action-btn i {
+  font-size: 14px;
+  line-height: 1;
+}
+
+/* Enlarged unified action buttons */
+.action-btn {
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin: 0 4px;
+  color: #fff;
+  font-size: 16px;
+}
+
+.action-btn.edit {
+  background-color: #2563eb; /* blue */
+}
+
+.action-btn.delete {
+  background-color: #dc2626; /* red */
+}
+
+.action-btn i {
+  font-size: 16px;
+  line-height: 1;
+}
+
+/* === Unified Action Icon Buttons === */
+.action-icons {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+.icon-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  background: rgba(255,255,255,0.06);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.2s;
+}
+.icon-btn svg {
+  width: 18px;
+  height: 18px;
+  fill: white;
+}
+.icon-btn.edit:hover {
+  background: #2563eb;
+  box-shadow: 0 0 10px rgba(37,99,235,0.6);
+}
+.icon-btn.delete:hover {
+  background: #ef4444;
+  box-shadow: 0 0 10px rgba(239,68,68,0.6);
+}
+
+/* === Unified Round Action Buttons (no icons) === */
+.action-icons {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+.icon-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.2s;
+}
+.icon-btn.edit {
+  background: #2563eb;
+}
+.icon-btn.delete {
+  background: #ef4444;
+}
+.icon-btn.edit:hover {
+  box-shadow: 0 0 10px rgba(37,99,235,0.6);
+  transform: scale(1.08);
+}
+.icon-btn.delete:hover {
+  box-shadow: 0 0 10px rgba(239,68,68,0.6);
+  transform: scale(1.08);
+}
+
+
+/* === Updated Button Size and Gap === */
+.action-icons {
+  display: flex;
+  gap: 20px; /* gap between buttons */
+  justify-content: center;
+}
+.icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.2s;
+}
+.icon-btn svg {
+  width: 16px;
+  height: 16px;
+  fill: white;
+}
+
+/* ==== Fix dropdown styling for Customer & Product Name ==== */
+select,
+select option {
+  background-color: #111826 !important; /* dropdown background */
+  color: #ffffff !important;            /* text color */
+}
+
+select option:hover,
+select option:focus,
+select option:checked {
+  background-color: #1F2936 !important; /* hover / selected background */
+  color: #ffffff !important;            /* hover / selected text */
+}
+
+
+
+/* Center and widen Login button */
+.login-wrap .btn.primary{ display:block; margin:0 auto; text-align:center; min-width:160px; }
+
+/* Manage Users tile */
+.um-card .um-header{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
+.um-card .um-header .name{ font-weight:900; font-size:16px; }
+.um-card .um-header .meta{ color:var(--muted); }
+.um-card .um-actions .btn{ min-width:140px; }
+
+/* Simple modal */
+.modal{ position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; z-index:2000; }
+.modal.show{ display:flex; }
+.modal .panel{ width:min(520px,92vw); background:#0b1220; border:1px solid var(--line); border-radius:14px; padding:16px; box-shadow:0 20px 60px rgba(0,0,0,.5); }
+.um-modal-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+
+
+
+/* Manage Users polished */
+.um-card{ margin-top:20px; }
+.um-card .um-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.um-card .um-header .name{ font-weight:900; font-size:16px; }
+.um-card .um-header .meta{ color:var(--muted); font-size:12px; }
+.um-card table{ width:100%; border-collapse:collapse; margin-top:10px; }
+.um-card th, .um-card td{ padding:8px 10px; text-align:left; border-bottom:1px solid var(--line); }
+.badge{ padding:2px 8px; border-radius:10px; font-size:12px; font-weight:600; }
+.badge-admin{ background:#1e3a8a; color:#fff; }
+.badge-cashier{ background:#065f46; color:#fff; }
+
+.btn.small{ padding:3px 8px; font-size:12px; border-radius:6px; }
+.btn.warn{ background:#f97316; color:#fff; }
+.btn.warn:hover{ opacity:0.9; }
+.btn.danger{ background:#dc2626; color:#fff; }
+.btn.danger:hover{ opacity:0.9; }
+
+/* Modal styling already included before */
+
+
+/* Hide old Manage Users table + reset */
+#user_list,
+#reset_user_pw {
+  display: none !important;
+}
+h4 + #user_list,
+h4:has(+ #user_list) {
+  display: none !important;
+}
+
+
+/* === Alignment Consistency Fix === */
+
+/* Tile headings uniform */
+.card h2, .tile h2, .module-box h2,
+.card h3, .tile h3, .module-box h3 {
+  font-size: 18px !important;
+  font-weight: 600 !important;
+  margin-top: 0 !important;
+  margin-bottom: 20px !important; /* consistent heading to fields gap */
+}
+
+/* Ensure consistent padding inside tiles */
+.card, .tile, .module-box {
+  padding-top: 20px !important;
+}
+
+/* First row inside tile aligned */
+.card .form-row:first-child,
+.tile .form-row:first-child,
+.module-box .form-row:first-child {
+  margin-top: 0 !important;
+}
+
+
+/* === Fix: Uniform gap between tile heading and first row of fields === */
+.card h2 + .form-row, .tile h2 + .form-row, .module-box h2 + .form-row,
+.card h3 + .form-row, .tile h3 + .form-row, .module-box h3 + .form-row {
+  margin-top: 20px !important;
+}
+
+.action-btn.view { background-color:#28a745; color:#fff; }

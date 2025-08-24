@@ -16,9 +16,15 @@ function formatCurrency(value) {
    - Amount Tendered + Change Due live, calculator modal copies value to Amount Tendered
 */
 
+
+// Quotation numbering
+function peekQuoteNo(){ const s=db.qseq; return s.q; }
+function nextQuoteNo(){ const s=db.qseq; const n=(s.q||1000); s.q=n+1; db.qseq=s; return n; }
 // storage keys
 const K_INV='agx_inv_v3_offline', K_SALES='agx_sales_v3_offline', K_CUST='agx_cust_v3_offline', K_PUR='agx_pur_v3_offline';
 const K_SETTINGS='agx_settings_v3_offline', K_USER='agx_user_v3_offline', K_SEQ='agx_seq_v3_offline', K_PWRESET='agx_pwreset_v3_offline';
+const K_QUOTES='agx_quotes_v1_offline', K_QSEQ='agx_qseq_v1_offline';
+
 
 const defaultSettings = {
   companyName: 'ArtGraphX Book Shop & Communication',
@@ -72,6 +78,12 @@ const db = {
   get users(){ return JSON.parse(localStorage.getItem(K_USER)||'[]'); }, set users(v){ localStorage.setItem(K_USER, JSON.stringify(v)); },
   get seq(){ return JSON.parse(localStorage.getItem(K_SEQ)||'{"invoice":1}'); }, set seq(v){ localStorage.setItem(K_SEQ, JSON.stringify(v)); },
   get reset(){ return JSON.parse(localStorage.getItem(K_PWRESET)||'{}'); }, set reset(v){ localStorage.setItem(K_PWRESET, JSON.stringify(v)); },
+
+  get quotes(){ return JSON.parse(localStorage.getItem(K_QUOTES)||'[]'); },
+  set quotes(v){ localStorage.setItem(K_QUOTES, JSON.stringify(v)); },
+  get qseq(){ return JSON.parse(localStorage.getItem(K_QSEQ)||'{"q":1001}'); },
+  set qseq(v){ localStorage.setItem(K_QSEQ, JSON.stringify(v)); },
+
 };
 
 let currentUser = null;
@@ -98,6 +110,7 @@ function layout(contentHTML){
         <nav>
           <button class="nav-btn active" data-section="dashboard">Dashboard</button>
           <button class="nav-btn" data-section="invoice">Customer Invoice</button>
+<button class="nav-btn" data-section="quotation">Customer Quotation</button>
           <button class="nav-btn" data-section="inventory">Inventory</button>
           <button class="nav-btn" data-section="sales">Sales</button>
           <button class="nav-btn" data-section="purchases">Purchases</button>
@@ -144,8 +157,8 @@ function renderLogin(){
       <div class="field"><label>Password<input id="p" type="password" style="text-align:center;margin-bottom:20px" class="input" placeholder="Password" style="text-align:center;margin-top:4px" style="text-align:center;margin-top:4px" /></label></div>
       <div style="display:flex;gap:10px;margin-top:8px">
         <button id="loginBtn" class="btn primary">Login</button>
-        <button id="regBtn" class="btn">Create Account</button>
-        <button id="fpBtn" class="btn ghost">Forgot password</button>
+        
+        
       </div>
       <div style="margin-top:14px"></div><p class="badge" style="margin-top:8px;text-align:center">Admin can create users and reset passwords locally.</p>
 <p style="text-align:center;margin-top:12px"><span style="font-size:12px;color:rgba(0,0,0,0.25)"><span style="font-size:12px;color:rgba(0,0,0,0.25)"><span style="font-size:12px;color:#b6b6b6">Version 7.1</span></span></span></p>
@@ -165,9 +178,6 @@ function renderLogin(){
     currentUser = {username:found.username, role:found.role};
     layout(); show('dashboard'); document.querySelectorAll('.nav-btn').forEach(btn=>{btn.classList.toggle('active', btn.dataset.section==='dashboard');});
   });
-  document.getElementById('regBtn').addEventListener('click', renderRegister);
-  document.getElementById('fpBtn').addEventListener('click', renderForgotPassword);
-
   // submit on Enter key
   ['u','p'].forEach(id=>{
     const el = document.getElementById(id);
@@ -274,6 +284,7 @@ function show(section){
     'purchases': renderPurchases,
     'customers': renderCustomers,
     'reports': renderReports,
+    'quotation': renderQuotation,
     'settings': renderSettings,
   };
   (routes[section]||renderDashboard)();
@@ -351,8 +362,8 @@ function renderDashboard(){
   drawBars(document.getElementById('barWeek'), Object.values(dayMap).map(d=>({label:d.label,sales:d.sales,profit:d.sales-d.cost})));
 }
 
-function drawPie(el,dataObj){ const entries=Object.entries(dataObj); if(!entries.length){ el.innerHTML='<div style="padding:12px;color:#9aa3b2">No data today.</div>'; return; } const total=entries.reduce((a,[,v])=>a+v,0); let acc=0; const colors=['#ef4444','#2563eb','#ef6666','#3b82f6','#a78bfa','#22d3ee','#f472b6']; const arcs=entries.map(([k,v],i)=>{ const start=(acc/total)*Math.PI*2; acc+=v; const end=(acc/total)*Math.PI*2; const x1=50+45*Math.cos(start), y1=50+45*Math.sin(start); const x2=50+45*Math.cos(end), y2=50+45*Math.sin(end); const large=(end-start)>Math.PI?1:0; const d=`M50,50 L${x1},${y1} A45,45 0 ${large} 1 ${x2},${y2} Z`; return `<path d="${d}" fill="${colors[i%colors.length]}" opacity="0.95"><title>${k}: ${v}</title></path>`; }).join(''); el.innerHTML=`<svg viewBox="0 0 100 100">${arcs}</svg>`; }
-function drawBars(el,arr){ if(!arr.length){ el.innerHTML='<div style="padding:12px;color:#9aa3b2">No data.</div>'; return; } const max=Math.max(...arr.flatMap(d=>[d.sales,d.profit,1])); const bw=100/(arr.length*2+1); let x=bw; const bars=arr.map((d,i)=>{ const hs=(d.sales/max)*80, hp=(d.profit/max)*80; const yS=90-hs, yP=90-hp; const xs=x, xp=x+bw; const labelX=x; x+=bw*2; return `<rect x="${xs}" y="${yS}" width="${bw-2}" height="${hs}" fill="#60a5fa"><title>${d.label} Sales: ${d.sales}</title></rect><rect x="${xp}" y="${yP}" width="${bw-2}" height="${hp}" fill="#34d399"><title>${d.label} Profit: ${d.profit}</title></rect><text x="${labelX+bw/2}" y="98" font-size="3" text-anchor="middle" fill="#cbd5e1">${d.label}</text>`}).join(''); el.innerHTML=`<svg viewBox="0 0 100 100"><g>${bars}</g></svg>`; }
+function drawPie(el,dataObj){ const entries=Object.entries(dataObj); if(!entries.length){ el.innerHTML='<div style="padding:12px;color:#9aa3b2">No data today.</div>'; return; } const total=entries.reduce((a,[,v])=>a+v,0); let acc=0; const colors=['#ef4444','#2563eb','#ef6666','#3b82f6','#a78bfa','#22d3ee','#f472b6']; const arcs=entries.map(([k,v],i)=>{ const start=(acc/total)*Math.PI*2; acc+=v; const end=(acc/total)*Math.PI*2; const x1=50+45*Math.cos(start), y1=50+45*Math.sin(start); const x2=50+45*Math.cos(end), y2=50+45*Math.sin(end); const large=(end-start)>Math.PI?1:0; const d=`M50,50 L${x1},${y1} A45,45 0 ${large} 1 ${x2},${y2} Z`; return `<path d="${d}" fill="${colors[i%colors.length]}" opacity="0.95"><title>${k}: ${v}</title></path>`; }).join(''); el.innerHTML=``; }
+function drawBars(el,arr){ if(!arr.length){ el.innerHTML='<div style="padding:12px;color:#9aa3b2">No data.</div>'; return; } const max=Math.max(...arr.flatMap(d=>[d.sales,d.profit,1])); const bw=100/(arr.length*2+1); let x=bw; const bars=arr.map((d,i)=>{ const hs=(d.sales/max)*80, hp=(d.profit/max)*80; const yS=90-hs, yP=90-hp; const xs=x, xp=x+bw; const labelX=x; x+=bw*2; return `<rect x="${xs}" y="${yS}" width="${bw-2}" height="${hs}" fill="#60a5fa"><title>${d.label} Sales: ${d.sales}</title></rect><rect x="${xp}" y="${yP}" width="${bw-2}" height="${hp}" fill="#34d399"><title>${d.label} Profit: ${d.profit}</title></rect><text x="${labelX+bw/2}" y="98" font-size="3" text-anchor="middle" fill="#cbd5e1">${d.label}</text>`}).join(''); el.innerHTML=``; }
 
 // Inventory, Purchases, Customers, Sales (simplified UI)
 
@@ -551,7 +562,7 @@ function renderInventory(){
             <th>Unit Price</th>
             <th>Cost Price</th>
             <th>Total Cost Price</th>
-            <th>Available Stock</th>
+            <th>Available Stock</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -566,6 +577,34 @@ function renderInventory(){
               <td>${fmtMoney(i.cost || 0)}</td>
               <td>${fmtMoney((i.cost || 0) * (i.qty || 0))}</td>
               <td>${i.qty || 0}</td>
+<td>
+  <div class="action-icons">
+    <div class="action-icons"><button class="icon-btn edit" onclick="editInventoryItem('${i.id}')" title="Edit"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<path fill="white" d="M362.7 19.3c25-25 65.5-25 
+90.5 0l39.5 39.5c25 25 25 65.5 
+0 90.5L233.4 408.6c-6.1 
+6.1-13.6 10.7-21.9 
+13.4l-85.2 28.4c-11.6 
+3.9-24.4 .8-33-7.8s-11.7-21.4-7.8-33l28.4-85.2c2.7-8.3 
+7.3-15.8 13.4-21.9L362.7 19.3z"/>
+</svg></button>
+    <button class="icon-btn delete" onclick="deleteInventoryItem('${i.id}')" title="Delete"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512">
+<path fill="white" d="M135.2 17.7C140.6 7.3 
+151.7 0 163.7 0H284.3c12 
+0 23.1 7.3 28.5 
+17.7L320 32h96c17.7 
+0 32 14.3 32 32s-14.3 
+32-32 32H32C14.3 96 0 
+81.7 0 64s14.3-32 32-32h96l7.2-14.3zM53.2 
+467c1.6 25.3 22.6 45 47.9 
+45H346.9c25.3 0 46.3-19.7 
+47.9-45L416 128H32l21.2 
+339z"/>
+</svg></button></div>
+  </div>
+</td>
+
+
             </tr>
           `).join('')}
         </tbody>
@@ -633,7 +672,7 @@ function renderInventory(){
     let win = window.open('', '', 'height=700,width=900');
     win.document.write('<html><head><title>Inventory Export</title></head><body>');
     win.document.write('<h2>Inventory Export</h2>');
-    win.document.write('<table border="1" style="border-collapse:collapse;width:100%"><tr><th>Category</th><th>Item Name</th><th>SKU No.</th><th>MRP</th><th>Discount</th><th>Unit Price</th><th>Cost Price</th><th>Total Cost Price</th><th>Available Stock</th></tr>');
+    win.document.write('<table border="1" style="border-collapse:collapse;width:100%"><tr><th>Category</th><th>Item Name</th><th>SKU No.</th><th>MRP</th><th>Discount</th><th>Unit Price</th><th>Cost Price</th><th>Total Cost Price</th><th>Available Stock</th><th>Actions</th></tr>');
     lastResults.forEach(i=>{
       win.document.write('<tr>');
       win.document.write('<td>'+ (i.category||'') +'</td>');
@@ -661,11 +700,519 @@ function renderInventory(){
   if(btnImport) btnImport.addEventListener('click', ()=> fileInput.click());
   if(fileInput) fileInput.addEventListener('change', ev=>{ if(ev.target.files.length>0) importCSV(ev.target.files[0]); });
 }
-function renderPurchases(){ const inv=db.inv; const canEdit=currentUser?.role==='admin'; const pur=db.pur; document.getElementById('content').innerHTML=`<div class="card"><h3>Purchase Management</h3>${ canEdit?`<div class="form-row"><div class="field"><label>Product<select id="pu_sel" class="input">${inv.map(i=>`<option value="${i.id}">${i.name}</option>`).join('')}</select></label></div><div class="field"><label>Qty<input id="pu_qty" type="number" class="input" value="1" /></label></div><div class="field"><label>Cost per unit<input id="pu_cost" type="number" class="input" value="0" /></label></div><div><button class="btn primary" style="height:40px;display:flex;align-items:center;justify-content:center" id="pu_add">Add Purchase</button></div></div>`:'<div class="badge">Cashier can view purchases only</div>'}<div id="pu_list" style="margin-top:10px"></div></div>`; if(canEdit){ document.getElementById('pu_add').addEventListener('click', ()=>{ const id=document.getElementById('pu_sel').value; const qty=Number(document.getElementById('pu_qty').value||0); const cost=Number(document.getElementById('pu_cost').value||0); if(qty<=0||cost<0) return alert('Enter valid qty/cost'); const item=db.inv.find(x=>x.id===id); if(!item) return; item.qty+=qty; if(cost>0) item.cost=cost; db.inv=db.inv; const p=db.pur; p.unshift({id:uid(),date:new Date().toISOString(),productId:id,name:item.name,qty,cost}); db.pur=p; renderPurchases(); }); } document.getElementById('pu_list').innerHTML= pur.length? `<table class="table"><thead><tr><th>Date</th><th>Product</th><th>Qty</th><th>Cost</th></tr></thead><tbody>${pur.map(p=>`<tr><td>${new Date(p.date).toLocaleString()}</td><td>${p.name}</td><td>${p.qty}</td><td>${fmtMoney(p.cost)}</td></tr>`).join('')}</tbody></table>`: '<p>No purchases yet.</p>'; }
+
+
+// === FIXED + ENHANCED PURCHASE ORDER MANAGEMENT (Multi-item + Search) ===
+function renderPurchases(){
+  const content = document.getElementById('content');
+  const inv = (typeof db !== 'undefined' && db.inv) ? db.inv : [];
+  const STORAGE_KEY = 'po_orders_v2';
+  const LEGACY_KEYS = ['agx_purchase_orders_v1','po_orders_v1','po_orders'];
+  let poItems = [];
+  let editingId = null; // track current PO being edited
+
+
+  function loadAllPOs(){
+    // Migrate legacy if exists
+    for(const key of LEGACY_KEYS){
+      const raw = localStorage.getItem(key);
+      if(raw){
+        try{
+          const arr = JSON.parse(raw);
+          if(Array.isArray(arr) && arr.length){
+            const mapped = arr.map(x => {
+              // Attempt to map legacy flat row into new structure
+              return {
+                id: x.id || Date.now()+Math.random(),
+                poNo: x.poNo || x.po_no || x.PONo || '',
+                date: x.date || x.po_date || x.Date || '',
+                supplier: x.supplier || x.Supplier || x.po_supplier || '',
+                phone: x.phone || x.contact || x.po_contact || '',
+                email: x.email || x.po_email || '',
+                whatsapp: x.whatsapp || x.po_whatsapp || '',
+                location: x.location || x.po_location || '',
+                items: x.items && Array.isArray(x.items) ? x.items : (x.product ? [{
+                  category: x.category || '',
+                  product: x.product || x.p_name || '',
+                  cost: Number(x.cost || x.p_cost || 0),
+                  qty: Number(x.qty || x.quantity || 1),
+                  total: Number(x.total || 0)
+                }] : [])
+              };
+            });
+            const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(existing.concat(mapped)));
+            localStorage.removeItem(key);
+          }
+        }catch(e){ /* ignore */ }
+      }
+    }
+    try{
+      const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      return Array.isArray(data) ? data : [];
+    }catch(e){ return []; }
+  }
+
+  function saveAllPOs(list){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(list||[]));
+  }
+
+  function saveCurrentPO(){
+    const poNo = document.getElementById('po_no').value.trim() || ('PO-' + new Date().getTime());
+    const data = {
+      id: Date.now()+Math.random(),
+      poNo,
+      date: (document.getElementById('po_date').value || new Date().toISOString().slice(0,10)),
+      supplier: document.getElementById('po_supplier').value.trim(),
+      location: document.getElementById('po_location').value.trim(),
+      phone: document.getElementById('po_contact').value.trim(),
+      email: document.getElementById('po_email').value.trim(),
+      whatsapp: document.getElementById('po_whatsapp').value.trim(),
+      items: poItems.slice()
+    };
+    if(!data.items.length){ alert('Add at least one item to the PO.'); return; }
+    
+const all = loadAllPOs();
+if(editingId){
+  // Update existing record
+  const idx = all.findIndex(x => x.id === editingId);
+  if(idx !== -1){
+    data.id = editingId; // preserve id
+    all[idx] = data;
+  } else {
+    all.push(data);
+  }
+  saveAllPOs(all);
+  alert('Purchase Order updated: ' + data.poNo);
+} else {
+  all.push(data);
+  saveAllPOs(all);
+  alert('Purchase Order saved: ' + data.poNo);
+}
+// Reset items table and totals
+poItems = [];
+renderItems();
+// Reset editing state and button label
+editingId = null;
+const saveBtn = document.getElementById('po_save');
+if(saveBtn) saveBtn.textContent = 'Save Purchase Order';
+// Optionally clear PO No so next save can auto-generate unless user keeps it
+document.getElementById('po_no').value = '';
+}
+
+  const categories = [...new Set(inv.map(i => i.category).filter(Boolean))];
+
+  content.innerHTML = `
+    <div class="card">
+      <h3>Purchase Order Management</h3>
+      <div class="form-row">
+        <div class="field"><label>PO No.<input id="po_no" class="input" placeholder="Auto/Manual"></label></div>
+        <div class="field"><label>Date<input id="po_date" type="date" class="input"></label></div>
+        <div class="field"><label>Supplier Name<input id="po_supplier" class="input" placeholder="Supplier"></label></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>Location<input id="po_location" class="input" placeholder="Warehouse/Store"></label></div>
+        <div class="field"><label>Contact No<input id="po_contact" class="input" placeholder="07X-XXXXXXX"></label></div>
+        <div class="field"><label>Email<input id="po_email" class="input" placeholder="supplier@email.com"></label></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>WhatsApp<input id="po_whatsapp" class="input" placeholder="+94..."></label></div>
+        <div class="field">
+          <label>Product Category
+            <select id="po_category" class="input">
+              <option value="">-- Select Category --</option>
+              ${categories.map(c=>`<option value="${c}">${c}</option>`).join('')}
+            </select>
+          </label>
+        </div>
+        <div class="field">
+          <label>Product Name
+            <select id="po_product" class="input">
+              <option value="">-- Select Product --</option>
+            </select>
+          </label>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>Product Cost<input id="po_cost" type="number" class="input" step="0.01"></label></div>
+        <div class="field"><label>Qty<input id="po_qty" type="number" class="input" step="1" value="1"></label></div>
+        <div class="field"><label>Total<input id="po_total" class="input" readonly></label></div>
+      </div>
+      <div class="form-row button-row">
+        <button class="btn primary" id="po_add">Add Item</button>
+        <button class="btn" id="po_save">Save Purchase Order</button>
+        <button class="btn ghost" id="po_clear">Clear</button>
+      </div>
+      <div id="po_items" style="margin-top:12px"></div>
+    </div>
+
+    <div class="card">
+      <h3>Purchase Order Search</h3>
+      <div class="form-row">
+        <div class="field"><label>PO No.<input id="s_po_no" class="input" placeholder="PO-..."></label></div>
+        <div class="field"><label>Supplier<input id="s_supplier" class="input" placeholder="Supplier name"></label></div>
+        <div class="field"><label>Phone<input id="s_phone" class="input" placeholder="07X-XXXXXXX"></label></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>From<input id="s_from" type="date" class="input"></label></div>
+        <div class="field"><label>To<input id="s_to" type="date" class="input"></label></div>
+        <div class="field" style="display:flex;gap:8px;align-items:end;">
+          <button id="s_search" class="btn primary">Search</button>
+          <button id="s_reset" class="btn ghost">Reset</button>
+        </div>
+      </div>
+      <div id="s_results" style="display:none"></div>
+    </div>
+  `;
+
+  // --- Element refs
+  const categorySelect = document.getElementById('po_category');
+  const productSelect = document.getElementById('po_product');
+  const costInput=document.getElementById('po_cost'),
+        qtyInput=document.getElementById('po_qty'),
+        totalInput=document.getElementById('po_total');
+  const itemsDiv = document.getElementById('po_items');
+
+  // Populate products on category change
+  categorySelect.addEventListener('change', ()=>{
+    const products = inv.filter(i=>i.category===categorySelect.value);
+    productSelect.innerHTML = `<option value="">-- Select Product --</option>` +
+      products.map(p=>`<option value="${p.name}" data-cost="${p.cost||p.price||0}">${p.name}</option>`).join('');
+  });
+
+  // Auto-fill cost
+  productSelect.addEventListener('change', ()=>{
+    const opt = productSelect.options[productSelect.selectedIndex];
+    costInput.value = (opt && opt.dataset.cost) ? opt.dataset.cost : '';
+    recalc();
+  });
+
+  function recalc(){
+    const c=Number(costInput.value||0), q=Number(qtyInput.value||0);
+    totalInput.value=(c*q).toFixed(2);
+  }
+  costInput.addEventListener('input',recalc);
+  qtyInput.addEventListener('input',recalc);
+
+  // Add item
+  document.getElementById('po_add').addEventListener('click', ()=>{
+    const item = {
+      category: categorySelect.value,
+      product: productSelect.value,
+      cost: Number(costInput.value||0),
+      qty: Number(qtyInput.value||0) || 1,
+      total: Number((Number(costInput.value||0) * (Number(qtyInput.value||0)||1)).toFixed(2))
+    };
+    if(!item.category || !item.product){ alert('Select category and product.'); return; }
+    poItems.push(item);
+    // reset qty only
+    qtyInput.value = '1';
+    recalc();
+    renderItems();
+  });
+
+  document.getElementById('po_save').addEventListener('click', saveCurrentPO);
+  document.getElementById('po_clear').addEventListener('click', ()=>{
+    poItems = [];
+    renderItems();
+  });
+
+  function renderItems(){
+    if(!poItems.length){ itemsDiv.innerHTML = '<p class="small" style="opacity:.8">No items added yet.</p>'; return; }
+    const rows = poItems.map((i,idx)=>`
+      <tr>
+        <td>${i.category}</td>
+        <td>${i.product}</td>
+        <td>${i.cost.toFixed ? i.cost.toFixed(2) : i.cost}</td>
+        <td>${i.qty}</td>
+        <td>${i.total.toFixed ? i.total.toFixed(2) : i.total}</td>
+        <td><button class="btn danger" data-rm="${idx}">Remove</button></td>
+      </tr>
+    `).join('');
+    const grand = poItems.reduce((a,b)=>a+Number(b.total||0),0);
+    itemsDiv.innerHTML = `
+      <table class="table">
+        <thead><tr><th>Category</th><th>Product</th><th>Cost</th><th>Qty</th><th>Total</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr><td colspan="4" style="text-align:right"><b>Grand Total</b></td><td><b>${grand.toFixed(2)}</b></td><td></td></tr></tfoot>
+      </table>
+    `;
+    itemsDiv.querySelectorAll('button[data-rm]').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        const i = Number(e.currentTarget.getAttribute('data-rm'));
+        poItems.splice(i,1);
+        renderItems();
+      });
+    });
+  }
+
+  // --- Search
+  function matchFilters(po, f){
+    if(f.po_no && !String(po.poNo||'').toLowerCase().includes(f.po_no)) return false;
+    if(f.supplier && !String(po.supplier||'').toLowerCase().includes(f.supplier)) return false;
+    if(f.phone && !String(po.phone||'').toLowerCase().includes(f.phone)) return false;
+    if(f.from || f.to){
+      const d = new Date(po.date||'1970-01-01').getTime();
+      if(f.from && d < new Date(f.from).getTime()) return false;
+      if(f.to && d > new Date(f.to).getTime()) return false;
+    }
+    return true;
+  }
+
+  function renderSearch(){
+    const resBox = document.getElementById('s_results');
+    const list = loadAllPOs();
+    if(!list.length){
+      resBox.innerHTML = '<p class="small" style="opacity:.8">No purchase orders saved yet.</p>';
+      return;
+    }
+    // default empty results until search pressed? We'll show all for convenience
+    drawResults(list);
+  }
+
+  function drawResults(rows){
+    const resBox = document.getElementById('s_results');
+    if(!rows.length){ resBox.innerHTML = '<p class="small" style="opacity:.8">No results.</p>'; return; }
+    const html = `
+      <table class="table">
+        <thead>
+          <tr><th>PO No</th><th>Date</th><th>Supplier</th><th>Phone</th><th>Items</th><th>Total</th><th>Action</th></tr>
+        </thead>
+        <tbody>
+          ${rows.map((o,idx)=>{
+            const total = (o.items||[]).reduce((a,b)=>a+Number(b.total||0),0);
+            return `
+              <tr>
+                <td>${o.poNo||''}</td>
+                <td>${o.date||''}</td>
+                <td>${o.supplier||''}</td>
+                <td>${o.phone||''}</td>
+                <td>${(o.items||[]).length}</td>
+                <td>${total.toFixed(2)}</td>
+                <td>
+                  <button class="action-btn view" data-view="${idx}" title="View Items"><i class="fa-solid fa-eye"></i></button>
+                  <button class="action-btn edit" data-edit="${idx}" title="Edit"><i class="fa-solid fa-pen"></i></button>
+                  <button class="action-btn delete" data-del="${idx}" title="Delete"><i class="fa-solid fa-trash"></i></button>
+                </td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+      <div id="po_modal" class="calc-modal" style="display:none; width:420px; max-height:70vh; overflow:auto">
+        <div class="calc-display" style="text-align:left">PO Items</div>
+        <div id="po_modal_body"></div>
+        <div style="text-align:right; margin-top:8px"><button id="po_modal_close" class="btn">Close</button></div>
+      </div>
+    `;
+    resBox.innerHTML = html;
+
+    const data = loadAllPOs();
+    resBox.querySelectorAll('button[data-view]').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        const i = Number(e.currentTarget.getAttribute('data-view'));
+        const o = rows[i];
+        const body = resBox.querySelector('#po_modal_body');
+        const items = (o.items||[]).map(it=>`
+          <tr>
+            <td>${it.category||''}</td>
+            <td>${it.product||''}</td>
+            <td>${Number(it.cost||0).toFixed(2)}</td>
+            <td>${Number(it.qty||0)}</td>
+            <td>${Number(it.total||0).toFixed(2)}</td>
+          </tr>
+        `).join('');
+        const total = (o.items||[]).reduce((a,b)=>a+Number(b.total||0),0);
+        body.innerHTML = `
+          <div class="small"><b>PO:</b> ${o.poNo||''} &nbsp; <b>Date:</b> ${o.date||''} &nbsp; <b>Supplier:</b> ${o.supplier||''}</div>
+          <table class="table" style="margin-top:8px">
+            <thead><tr><th>Category</th><th>Product</th><th>Cost</th><th>Qty</th><th>Total</th></tr></thead>
+            <tbody>${items}</tbody>
+            <tfoot><tr><td colspan="4" style="text-align:right"><b>Grand</b></td><td><b>${total.toFixed(2)}</b></td></tr></tfoot>
+          </table>
+        `;
+        const modal = resBox.querySelector('#po_modal');
+        modal.style.display = 'block';
+        resBox.querySelector('#po_modal_close').onclick = ()=>{ modal.style.display='none'; };
+      });
+    });
+
+    
+    // Wire up edit buttons (load PO into the top form for editing)
+    resBox.querySelectorAll('button[data-edit]').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        const i = Number(e.currentTarget.getAttribute('data-edit'));
+        const o = rows[i];
+        // Set editing mode
+        editingId = o.id;
+        // Fill form fields
+        const set = (id,val)=>{ const el = document.getElementById(id); if(el) el.value = val||''; };
+        set('po_no', o.poNo);
+        set('po_date', o.date);
+        set('po_supplier', o.supplier);
+        set('po_location', o.location);
+        set('po_contact', o.phone);
+        set('po_email', o.email);
+        set('po_whatsapp', o.whatsapp);
+        // Load items
+        poItems = (o.items||[]).map(it=>({ ...it }));
+        // Re-render items table
+        try { renderItems(); } catch(e){ console.warn('renderItems failed', e); }
+        // Update save button label to indicate update
+        const saveBtn = document.getElementById('po_save');
+        if(saveBtn) saveBtn.textContent = 'Update Purchase Order';
+        // Scroll to the top where the form is
+        try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch(_) { window.scrollTo(0,0); }
+      });
+    });
+    resBox.querySelectorAll('button[data-del]').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        const i = Number(e.currentTarget.getAttribute('data-del'));
+        const target = rows[i];
+        if(!confirm('Delete PO ' + (target.poNo||'') + '?')) return;
+        const all = loadAllPOs().filter(o => o.id !== target.id);
+        saveAllPOs(all);
+        // Refresh current filter
+        document.getElementById('s_search').click();
+      });
+    });
+  }
+
+  // Wire search buttons
+  document.getElementById('s_search').addEventListener('click', ()=>{
+  const resultsDiv = document.getElementById('s_results');
+  resultsDiv.style.display = 'block';
+    const f = {
+      po_no: document.getElementById('s_po_no').value.trim().toLowerCase(),
+      supplier: document.getElementById('s_supplier').value.trim().toLowerCase(),
+      phone: document.getElementById('s_phone').value.trim().toLowerCase(),
+      from: document.getElementById('s_from').value,
+      to: document.getElementById('s_to').value
+    };
+    const all = loadAllPOs().filter(o=>matchFilters(o,f));
+    drawResults(all);
+  });
+  document.getElementById('s_reset').addEventListener('click', ()=>{
+  document.getElementById('s_po_no').value = '';
+  document.getElementById('s_supplier').value = '';
+  document.getElementById('s_phone').value = '';
+  document.getElementById('s_from').value = '';
+  document.getElementById('s_to').value = '';
+  const resultsDiv = document.getElementById('s_results');
+  resultsDiv.innerHTML = '';
+  resultsDiv.style.display = 'none';
+});
+
+  // Initial renders
+  renderItems();
+  renderSearch();
+}
+
+
 
 function renderCustomers(){ const canEdit=currentUser?.role==='admin'; const cust=db.cust; document.getElementById('content').innerHTML=`<div class="card"><h3>Customer Management</h3><div class="form-row"><div class="field"><label>Name<input id="cu_name" class="input"/></label></div><div class="field"><label>Phone<input id="cu_phone" class="input"/></label></div><div class="field"><label>Email<input id="cu_email" class="input"/></label></div><div><button class="btn primary" style="height:40px;display:flex;align-items:center;justify-content:center" id="cu_add">Add Customer</button></div></div><div id="cu_list" style="margin-top:10px"></div></div>`; document.getElementById('cu_add').addEventListener('click', ()=>{ if(currentUser?.role!=='admin') return alert('Admin only'); const name=val('cu_name'); if(!name) return alert('Name required'); const c={id:uid(),name,phone:val('cu_phone'),email:val('cu_email')}; const list=db.cust; list.unshift(c); db.cust=list; renderCustomers(); }); document.getElementById('cu_list').innerHTML= cust.length? `<table class="table"><thead><tr><th>Name</th><th>Phone</th><th>Email</th></tr></thead><tbody>${cust.map(c=>`<tr><td>${c.name}</td><td>${c.phone}</td><td>${c.email}</td></tr>`).join('')}</tbody></table>`: '<p>No customers yet.</p>'; }
 
-function renderSales(){ const sales=db.sales; document.getElementById('content').innerHTML=`<div class="card"><h3>Sales</h3>${ sales.length===0 ? '<p>No sales yet.</p>' : `<table class="table"><thead><tr><th>Inv #</th><th>Date</th><th>Customer</th><th>Total</th><th></th></tr></thead><tbody>${sales.map(s=>`<tr><td>${s.invNo}</td><td>${new Date(s.date).toLocaleString()}</td><td>${s.customerName}</td><td>${fmtMoney(s.total)}</td><td><button class="btn ghost" style="height:40px;display:flex;align-items:center;justify-content:center" onclick="viewSale('${s.id}')">Open</button></td></tr>`).join('')}</tbody></table>` }</div>`; }
+
+function renderSales(){ 
+  document.getElementById('content').innerHTML = `
+    <div class="card">
+      <h3>Sales</h3>
+      <div class="form-row">
+        <div class="field"><label>Invoice No.<input id="sale_invno" class="input" placeholder="Invoice No."/></label></div>
+        <div class="field"><label>Customer Name<input id="sale_cust" class="input" placeholder="Customer Name"/></label></div>
+        <div class="field"><label>Phone<input id="sale_phone" class="input" placeholder="Phone"/></label></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>Date From<input type="date" id="sale_date_from" class="input"/></label></div>
+        <div class="field"><label>Date To<input type="date" id="sale_date_to" class="input"/></label></div>
+      </div>
+      <div class="form-row button-row">
+        <button class="btn primary" id="sale_search_btn">Search</button>
+        <button class="btn" id="sale_clear_btn">Clear</button>
+      </div>
+      <div id="sales_results" style="margin-top:12px"></div>
+    </div>
+  `;
+
+  const resultsDiv = document.getElementById('sales_results');
+  const btnSearch = document.getElementById('sale_search_btn');
+  const btnClear = document.getElementById('sale_clear_btn');
+
+  function doSearch(){
+    const invNo = document.getElementById('sale_invno').value.trim().toLowerCase();
+    const cust = document.getElementById('sale_cust').value.trim().toLowerCase();
+    const phone = document.getElementById('sale_phone').value.trim().toLowerCase();
+    const dFrom = document.getElementById('sale_date_from').value;
+    const dTo = document.getElementById('sale_date_to').value;
+
+    let list = db.sales;
+
+    if(invNo){
+      list = list.filter(s => (s.invNo||'').toString().toLowerCase().includes(invNo));
+    }
+    if(cust){
+      list = list.filter(s => (s.customerName||'').toLowerCase().includes(cust));
+    }
+    if(phone){
+      list = list.filter(s => (s.customerPhone||'').toLowerCase().includes(phone));
+    }
+    if(dFrom){
+      const from = new Date(dFrom + "T00:00:00");
+      list = list.filter(s => new Date(s.date) >= from);
+    }
+    if(dTo){
+      const to = new Date(dTo + "T23:59:59");
+      list = list.filter(s => new Date(s.date) <= to);
+    }
+
+    if(!invNo && !cust && !phone && !dFrom && !dTo){
+      resultsDiv.innerHTML = "<p>Please enter at least one filter above.</p>";
+      return;
+    }
+
+    if(list.length===0){
+      resultsDiv.innerHTML = "<p>No matching sales found.</p>";
+      return;
+    }
+
+    resultsDiv.innerHTML = `
+      <table class="table">
+        <thead>
+          <tr><th>Inv #</th><th>Date</th><th>Customer</th><th>Phone</th><th>Total</th><th></th></tr>
+        </thead>
+        <tbody>
+          ${list.map(s => `
+            <tr>
+              <td>${s.invNo}</td>
+              <td>${new Date(s.date).toLocaleString()}</td>
+              <td>${s.customerName||''}</td>
+              <td>${s.customerPhone||''}</td>
+              <td>${fmtMoney(s.total)}</td>
+              <td><button class="btn ghost" onclick="viewSale('${s.id}')">Open</button></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  btnSearch.addEventListener('click', doSearch);
+  
+  // Trigger search when pressing Enter in any sales filter input
+  ['sale_invno','sale_cust','sale_phone','sale_date_from','sale_date_to'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el){ el.addEventListener('keydown', function(ev){ if(ev.key==='Enter'){ ev.preventDefault(); doSearch(); } }); }
+  });
+btnClear.addEventListener('click', ()=>{
+    document.getElementById('sale_invno').value='';
+    document.getElementById('sale_cust').value='';
+    document.getElementById('sale_phone').value='';
+    document.getElementById('sale_date_from').value='';
+    document.getElementById('sale_date_to').value='';
+    resultsDiv.innerHTML='';
+  });
+}
+
 window.viewSale=function(id){ const s=db.sales.find(x=>x.id===id); if(!s) return alert('Sale not found'); showInvoiceView(s); };
 
 function renderReports(){ const sales=db.sales, inv=db.inv; const totalSales=sales.reduce((a,b)=>a+b.total,0); const totalCost=sales.reduce((a,b)=>a+b.costTotal,0); const profit=totalSales-totalCost; const stockRetail=inv.reduce((a,b)=>a+(b.price*b.qty),0); const stockCost=inv.reduce((a,b)=>a+(b.cost*b.qty),0); document.getElementById('content').innerHTML=`<div class="card"><h3>Reports & Analytics</h3><div class="grid cols-3"><div class="card kpi"><div class="title">Total Sales</div><div class="value">${fmtMoney(totalSales)}</div></div><div class="card kpi"><div class="title">Total Cost</div><div class="value">${fmtMoney(totalCost)}</div></div><div class="card kpi"><div class="title">Profit</div><div class="value">${fmtMoney(profit)}</div></div></div><div class="card" style="margin-top:12px"><h4 style="margin:0 0 8px 0">Stock Valuation</h4><p>Retail: <b>${fmtMoney(stockRetail)}</b> • Cost: <b>${fmtMoney(stockCost)}</b></p></div></div>`; }
@@ -681,9 +1228,19 @@ function renderInvoice(){
   const inv=db.inv, cust=db.cust;
   const invNoPeek = peekInvoiceNo();
   window._cart = [];
-  document.getElementById('content').innerHTML = `
+  
+  // --- initialize invoice date to today's date (editable for back-dating) ---
+  requestAnimationFrame(()=>{
+    var dInput = document.getElementById('inv_date');
+    if(dInput){
+      var d = new Date();
+      var pad = n => String(n).padStart(2,'0');
+      dInput.value = d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate());
+    }
+  });
+document.getElementById('content').innerHTML = `
     <div class="card">
-      <h3>Customer Invoice <span class="badge">Inv # ${invNoPeek}</span></h3>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><h3 style="margin:0;">Customer Invoice <span class="badge">Inv # ${invNoPeek}</span></h3><div style="display:flex;align-items:center;gap:6px;"><label for="inv_date" style="font-size:12px;">Date</label><input type="date" id="inv_date" class="input" style="height:32px;padding:4px 8px;border-radius:8px" /></div></div>
       <div class="form-row">
         <div class="field"><label>Customer<select id="c_sel" class="input">${cust.map(c=>`<option value="${c.id}">${c.name}</option>`).join('')}<option value="new">+ New customer</option></select></label></div>
         <div class="field"><label>Customer Name (if new)<input id="c_name" class="input" placeholder="Name"/></label></div>
@@ -913,7 +1470,75 @@ document.getElementById('disc').addEventListener('input', updateUnitPrice);
 
   });
 
-  function drawCart(){ if(!_cart.length){ document.getElementById('cart_area').innerHTML='<p>No lines yet.</p>'; return; } const rows=_cart.map((l,i)=>{ const lineTotal = (l.mrp - l.disc) * l.qty; return `<tr><td>${l.sku||''}</td><td>${l.name}</td><td>${l.qty}</td><td>${fmtMoney(l.mrp)}</td><td>${fmtMoney(l.mrp - l.disc)}</td><td style="width:120px">${fmtMoney(l.disc)}</td><td>${fmtMoney(lineTotal)}</td><td><button class="btn ghost" style="height:40px;display:flex;align-items:center;justify-content:center" onclick="editLine(${i})">Edit</button> <button class="btn danger" onclick="delLine(${i})">Delete</button></td></tr>`; }).join(''); const totals=_cart.reduce((acc,l)=>{acc.sub+=l.qty*l.mrp; acc.disc+=l.qty*l.disc; acc.cost+=l.qty*l.cost; return acc;},{sub:0,disc:0,cost:0}); const grand=totals.sub - totals.disc; document.getElementById('cart_area').innerHTML=`<table class="table"><thead><tr><th>SKU</th><th>Product Name</th><th>Qty</th><th>MRP</th><th>Unit Price</th><th>Discount</th><th>Total</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="4"></td><td>Total Discount</td><td>${fmtMoney(totals.disc)}</td><td></td></tr><tr><td colspan="4"></td><td>Total Amount</td><td>${fmtMoney(grand)}</td><td></td></tr></tfoot></table>`; const cash=Number(document.getElementById('cash_given').value||0); document.getElementById('change_due').value = (Number(Math.max(0, cash - grand||0)).toLocaleString('en-LK',{minimumFractionDigits:2,maximumFractionDigits:2})); }
+  
+function drawCart() {
+  if (!_cart.length) {
+    document.getElementById('cart_area').innerHTML = '<p>No lines yet.</p>';
+    return;
+  }
+
+  const rows = _cart.map((l, i) => {
+    const lineTotal = (l.mrp - l.disc) * l.qty;
+    return `
+      <tr>
+        <td>${l.sku || ''}</td>
+        <td>${l.name}</td>
+        <td>${l.qty}</td>
+        <td>${fmtMoney(l.mrp)}</td>
+        <td>${fmtMoney(l.mrp - l.disc)}</td>
+        <td style="width:120px">${fmtMoney(l.disc)}</td>
+        <td>${fmtMoney(lineTotal)}</td>
+        <td>
+          <button class="action-btn edit" onclick="editLine(${i})" title="Edit"><i class="fa-solid fa-pen"></i></button>
+          <button class="action-btn delete" onclick="delLine(${i})" title="Delete"><i class="fa-solid fa-trash"></i></button>
+        </td>
+      </tr>`;
+  }).join('');
+
+  const totals = _cart.reduce((acc, l) => {
+    acc.sub += l.qty * l.mrp;
+    acc.disc += l.qty * l.disc;
+    acc.cost += l.qty * l.cost;
+    return acc;
+  }, { sub: 0, disc: 0, cost: 0 });
+
+  const grand = totals.sub - totals.disc;
+  document.getElementById('cart_area').innerHTML = `
+    <table class="table">
+      <thead>
+        <tr>
+          <th>SKU</th>
+          <th>Product Name</th>
+          <th>Qty</th>
+          <th>MRP</th>
+          <th>Unit Price</th>
+          <th>Discount</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+      <tfoot>
+        <tr>
+          <td colspan="4"></td>
+          <td>Total Discount</td>
+          <td>${fmtMoney(totals.disc)}</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td colspan="4"></td>
+          <td>Total Amount</td>
+          <td>${fmtMoney(grand)}</td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>`;
+
+  const cash = Number(document.getElementById('cash_given').value || 0);
+  document.getElementById('change_due').value =
+    (Number(Math.max(0, cash - grand || 0))
+      .toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+}
+
 
   window.editLine=function(i){ const l=_cart[i]; if(!l) return; const qty=Number(prompt('Qty',l.qty)); if(Number.isNaN(qty)||qty<=0) return; const price=Number(prompt('Unit Price',l.price)); if(Number.isNaN(price)||price<0) return; const disc=Number(prompt('Discount',l.disc)); if(Number.isNaN(disc)||disc<0) return; _cart[i]={...l,qty,price,disc}; drawCart(); };
   window.delLine=function(i){ if(currentUser?.role!=='admin'){ const pin=prompt('Admin password required to delete line:'); const admin=db.users.find(u=>u.role==='admin' && u.password===pin); if(!admin) return alert('Invalid admin password'); } _cart.splice(i,1); drawCart(); };
@@ -930,7 +1555,7 @@ document.getElementById('disc').addEventListener('input', updateUnitPrice);
     const invList=db.inv; _cart.forEach(l=>{ const it=invList.find(x=>x.id===l.pid); if(it) it.qty=Math.max(0,it.qty-l.qty); }); db.inv=invList;
     // consume invoice number now
     const invNo = nextInvoiceNo();
-    const sale = { id:uid(), invNo, date:new Date().toISOString(), customerId:custId, customerName:custName, items:_cart.map(l=>({id:l.pid,name:l.name,qty:l.qty,price:l.price,disc:l.disc,cost:l.cost,sku:l.sku})), total:grand, discount:totals.disc, costTotal:totals.cost, notes:document.getElementById('notes').value.trim() };
+    const sale = { id:uid(), invNo, date: (function(){var el=document.getElementById('inv_date');var v=el&&el.value; return v?new Date(v+'T00:00:00').toISOString():new Date().toISOString();})(), customerId:custId, customerName:custName, items:_cart.map(l=>({id:l.pid,name:l.name,qty:l.qty,price:l.price,disc:l.disc,cost:l.cost,sku:l.sku})), total:grand, discount:totals.disc, costTotal:totals.cost, notes:document.getElementById('notes').value.trim() };
     const sales=db.sales; sales.unshift(sale); db.sales=sales;
     const cash=Number(document.getElementById('cash_given').value||0); const change=Math.max(0,cash-grand);
     alert(`Saved. Change due: ${fmtMoney(change)}. Invoice # ${invNo}`);
@@ -1000,6 +1625,134 @@ function renderSettings(){
     const newpw = prompt('Enter new password for '+sel); if(!newpw) return;
     const users=db.users; const u=users.find(x=>x.username===sel); if(!u) return alert('User not found'); u.password=newpw; db.users=users; alert('Password updated for '+sel);
   });
+
+  
+
+  
+
+  // ===== Manage Users (Admin-only) =====
+  try{
+    if(currentUser && currentUser.role === 'admin'){
+      const setRoot = document.getElementById('content');
+      if(setRoot){
+        setRoot.insertAdjacentHTML('beforeend', `
+          <div class="card um-card">
+            <div class="um-header">
+              <div>
+                <div class="name">Manage Users</div>
+                <div class="meta small">Create, reset, or delete users. Admin only.</div>
+              </div>
+              
+            </div>
+
+            <div class="um-list-wrap">
+              <table class="table" id="um_table">
+                <thead>
+                  <tr><th>Username</th><th>Role</th><th>Email</th><th style="width:200px">Actions</th></tr>
+                </thead>
+                <tbody id="um_list"></tbody>
+              </table>
+            </div>
+          
+    <div class="um-actions-bottom" style="margin-top:10px">
+      <button class="btn primary" id="um_open">Create a user</button>
+    </div>
+    </div>
+
+          <!-- Modal: Create User -->
+          <div class="modal" id="um_modal">
+            <div class="panel">
+              <div class="um-modal-head">
+                <div class="name">Create User</div>
+                <button class="btn ghost" id="um_close">✕</button>
+              </div>
+              <div class="form-row">
+                <div class="field"><label>Username<input id="um_u" class="input" placeholder="e.g. cashier2" /></label></div>
+                <div class="field"><label>Password<input id="um_p" type="password" class="input" placeholder="••••••••" /></label></div>
+                <div class="field"><label>Role<select id="um_role" class="input">
+                  <option value="cashier">Cashier</option>
+                  <option value="admin">Admin</option>
+                </select></label></div>
+                <div class="field"><label>Email<input id="um_email" class="input" placeholder="name@example.com" /></label></div>
+              </div>
+              <div class="button-row">
+                <button class="btn" id="um_cancel">Cancel</button>
+                <button class="btn primary" id="um_create">Save user</button>
+              </div>
+            </div>
+          </div>
+        `);
+
+        const el = (id)=>document.getElementById(id);
+
+        const openModal = ()=> el('um_modal').classList.add('show');
+        const closeModal = ()=> el('um_modal').classList.remove('show');
+        el('um_open').addEventListener('click', openModal);
+        el('um_close').addEventListener('click', closeModal);
+        el('um_cancel').addEventListener('click', closeModal);
+
+        // Render list
+        const renderList = ()=>{
+          const tb = el('um_list');
+          if(!tb) return;
+          const users = db.users || [];
+          tb.innerHTML = users.map(u => `
+            <tr>
+              <td>${u.username}</td>
+              <td><span class="badge ${u.role==='admin'?'badge-admin':'badge-cashier'}">${u.role||'cashier'}</span></td>
+              <td>${u.email||''}</td>
+              <td>
+                <button class="btn small warn um-reset" data-u="${u.username}">Reset</button>
+                ${u.username==='admin' ? '' : `<button class="btn small danger um-del" data-u="${u.username}">Delete</button>`}
+              </td>
+            </tr>
+          `).join('');
+          // Reset handlers
+          tb.querySelectorAll('.um-reset').forEach(btn => {
+            btn.addEventListener('click', (e)=>{
+              const uname = e.currentTarget.getAttribute('data-u');
+              const npw = prompt('Enter new password for "'+uname+'":');
+              if(!npw) return;
+              const users = db.users || [];
+              const usr = users.find(x=>x.username===uname);
+              if(!usr){ alert('User not found'); return; }
+              usr.password = npw; db.users = users;
+              alert('Password reset successful.');
+            });
+          });
+          // Delete handlers
+          tb.querySelectorAll('.um-del').forEach(btn => {
+            btn.addEventListener('click', (e)=>{
+              const uname = e.currentTarget.getAttribute('data-u');
+              if(!confirm('Are you sure you want to delete user "'+uname+'"?')) return;
+              let users = db.users || [];
+              users = users.filter(x=>x.username!==uname);
+              db.users = users;
+              renderList();
+              alert('🗑️ User deleted.');
+            });
+          });
+        };
+        renderList();
+
+        // Create user
+        el('um_create').addEventListener('click', ()=>{
+          const u = el('um_u').value.trim();
+          const p = el('um_p').value;
+          const role = el('um_role').value;
+          const email = el('um_email').value.trim();
+          if(!u || !p){ alert('Username and password required'); return; }
+          const users = db.users || [];
+          if(users.find(x=>x.username===u)){ alert('Username already exists'); return; }
+          users.unshift({username:u, password:p, role, email});
+          db.users = users;
+          closeModal();
+          renderList();
+          alert('✅ User created');
+        });
+      }
+    }
+  }catch(e){ console.error('Manage Users inject error', e); }
 }
 
 // helper to set selected user in settings
@@ -1218,3 +1971,399 @@ function saveInventory(inventory) {
     }
   }, 400);
 })();
+
+
+// ===== Customer Quotation (A5 print) =====
+
+function renderQuotation(){
+  const cust=db.cust;
+  const qNoPeek = peekQuoteNo();
+  window._qcart = [];
+  const today = new Date().toISOString().slice(0,10);
+  document.getElementById('content').innerHTML = `
+    <div class="card">
+      <h3>Customer Quotation <span class="badge">Quote # ${qNoPeek}</span></h3>
+      <div class="form-row">
+        <div class="field"><label>Quote No<input id="q_no" class="input" value="${qNoPeek}" readonly/></label></div>
+        <div class="field"><label>Date<input id="q_date" type="date" class="input" value="${today}"/></label></div>
+        <div class="field"><label>Customer
+          <select id="q_c_sel" class="input">
+            <option value="cash">Cash</option>
+            <option value="new">+ New customer</option>
+            ${cust.map(c=>`<option value="${c.id}">${c.name}</option>`).join('')}
+          </select>
+        </label></div>
+      </div>
+
+      <div class="form-row">
+        <div class="field"><label>Customer Name<input id="q_c_name" class="input" placeholder="Name"/></label></div>
+        <div class="field"><label>Mobile<input id="q_c_phone" class="input" placeholder="07X"/></label></div>
+        <div class="field"><label>Valid (days)<input id="q_valid_days" class="input" type="number" min="1" value="14"/></label></div>
+      </div>
+
+      <div class="form-row">
+        <div class="field"><label>SKU<input id="q_sku" class="input" placeholder="Enter or scan SKU" /></label></div>
+        <div class="field"><label>Product Name<select id="q_pname" class="input"></select></label></div>
+        <div class="field"><label>QTY<input id="q_qty" type="number" class="input" value="1" min="1" /></label></div>
+      </div>
+
+      <div class="form-row">
+        <div class="field"><label>MRP<input id="q_mrp" class="input currency-lkr" value="0.00" readonly/></label></div>
+        <div class="field"><label>DISCOUNT<input id="q_disc" class="input currency-lkr" value="0.00"/></label></div>
+        <div class="field"><label>UNIT PRICE<input id="q_price" class="input currency-lkr" value="0.00"/></label></div>
+      </div>
+
+      <div id="q_cart_area" style="margin-top:12px"></div>
+
+      <div class="invoice-actions">
+        <button class="btn" id="q_new">New Quotation</button>
+        <button class="btn primary" id="q_add">Add Item</button>
+        <button class="btn primary" id="q_save">Save Quotation</button>
+        <button class="btn" id="q_print">Print</button>
+        <button class="btn ghost" id="q_list">Quotation List</button>
+      </div>
+    </div>
+  `;
+
+  const skuInput=document.getElementById('q_sku');
+  const pName=document.getElementById('q_pname');
+  const pQty=document.getElementById('q_qty');
+  const pMrp=document.getElementById('q_mrp');
+  const pDisc=document.getElementById('q_disc');
+  const pPrice=document.getElementById('q_price');
+  const cSel=document.getElementById('q_c_sel');
+  const cName=document.getElementById('q_c_name');
+  const cPhone=document.getElementById('q_c_phone');
+
+  function updateCustFields(){
+    const val=cSel.value;
+    if(val==='cash'){
+      cName.value='Cash'; cPhone.value=''; cName.readOnly=true; cPhone.readOnly=true;
+    }else if(val==='new'){
+      cName.value=''; cPhone.value=''; cName.readOnly=false; cPhone.readOnly=false;
+    }else{
+      const c=db.cust.find(x=>x.id===val);
+      if(c){ cName.value=c.name||''; cPhone.value=c.phone||''; }
+      cName.readOnly=true; cPhone.readOnly=true;
+    }
+  }
+  cSel.addEventListener('change', updateCustFields);
+  updateCustFields();
+
+  // Fill product dropdown with inventory
+  pName.innerHTML = '<option value="">--Select--</option>' + db.inv.map(it=>`<option value="${it.id}">${it.name}</option>`).join('');
+  pName.addEventListener('change', ()=>{
+    const item=db.inv.find(x=>x.id==pName.value);
+    if(item){
+      skuInput.value=item.sku||'';
+      const mrp = Number(item.mrp ?? item.price ?? 0);
+      const disc = Number(item.disc ?? item.discount ?? 0);
+      pMrp.value = formatNumNoRs(mrp);
+      pDisc.value = formatNumNoRs(disc);
+      pPrice.value = formatNumNoRs(Math.max(0, mrp - disc));
+      pQty.value=1;
+    }
+  });
+
+  skuInput.addEventListener('input', ()=>{
+    const s = skuInput.value.trim().toLowerCase();
+    const item = db.inv.find(x=>x.sku && x.sku.toLowerCase()===s);
+    if(item){
+      pName.value=item.id;
+      const mrp = Number(item.mrp ?? item.price ?? 0);
+      const disc = Number(item.disc ?? item.discount ?? 0);
+      pMrp.value = formatNumNoRs(mrp);
+      pDisc.value = formatNumNoRs(disc);
+      pPrice.value = formatNumNoRs(Math.max(0, mrp - disc));
+      pQty.value=1;
+    }
+  });
+
+  pDisc.addEventListener('input', ()=>{
+    const mrp=parseMoney(pMrp.value||0), disc=parseMoney(pDisc.value||0);
+    pPrice.value = formatNumNoRs(Math.max(0, mrp - disc));
+  });
+
+  document.getElementById('q_add').addEventListener('click', ()=>{
+    const item=db.inv.find(x=>x.id==pName.value);
+    if(!item) return alert('Select product');
+    const qty=Number(pQty.value||1);
+    const price=parseMoney(pPrice.value||0);
+    const disc=parseMoney(pDisc.value||0);
+    window._qcart.push({pid:item.id, sku:item.sku, name:item.name, qty, mrp:parseMoney(pMrp.value||0), price, disc, cost:item.cost});
+    drawQuoteCart();
+    skuInput.value=''; pName.value=''; pPrice.value='0.00'; pQty.value='1'; pMrp.value='0.00'; pDisc.value='0.00'; 
+  });
+
+  document.getElementById('q_new').addEventListener('click', renderQuotation);
+  document.getElementById('q_save').addEventListener('click', saveQuotation);
+  document.getElementById('q_print').addEventListener('click', ()=>{
+    if(!_qcart.length) return alert('Save quotation first');
+    // Save first and then print the last saved
+    saveQuotation(true);
+  });
+  document.getElementById('q_list').addEventListener('click', renderQuotationList);
+
+  drawQuoteCart();
+}
+function drawQuoteCart(){
+  const area=document.getElementById('q_cart_area');
+  if(!_qcart.length){
+    area.innerHTML = '<div class="badge">No items yet</div>'; 
+    return;
+  }
+  const rows=_qcart.map((l,i)=>`<tr>
+    <td>${l.sku||''}</td><td>${l.name||''}</td><td><input type="number" min="1" value="${l.qty}" data-i="${i}" class="input qqty" style="width:80px"/></td>
+    <td style="text-align:right">${formatNumNoRs(l.mrp)}</td>
+    <td style="text-align:right">${formatNumNoRs(l.disc)}</td>
+    <td style="text-align:right">${formatNumNoRs(l.price)}</td>
+    <td style="text-align:right">${formatNumNoRs(l.qty*l.price)}</td>
+    <td><button class="action-btn edit" onclick="editQuotation(${i})" title="Edit"><i class="fa-solid fa-pen"></i></button> <button class="action-btn delete" onclick="deleteQuotation(${i})" title="Delete"><i class="fa-solid fa-trash"></i></button></td>
+  </tr>`).join('');
+  const totals=_qcart.reduce((a,l)=>{a.sub+=l.qty*l.price; a.disc+=l.qty*l.disc; return a;},{sub:0,disc:0});
+  const grand=totals.sub;
+  area.innerHTML = `<table class="table">
+    <thead><tr><th>SKU</th><th>Item</th><th>Qty</th><th>MRP</th><th>Discount</th><th>Unit</th><th>Total</th><th></th></tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot>
+      <tr><td colspan="5"></td><td>Sub Total</td><td style="text-align:right">${formatNumNoRs(totals.sub+totals.disc)}</td><td></td></tr>
+      <tr><td colspan="5"></td><td>Total Discount</td><td style="text-align:right">${formatNumNoRs(totals.disc)}</td><td></td></tr>
+      <tr><td colspan="5"></td><td>Grand Total</td><td style="text-align:right">${formatNumNoRs(grand)}</td><td></td></tr>
+    </tfoot>
+  </table>`;
+  // qty change
+  document.querySelectorAll('.qqty').forEach(inp=>{
+    inp.addEventListener('input', e=>{
+      const i=Number(e.target.dataset.i);
+      const v=Math.max(1, Number(e.target.value||1));
+      _qcart[i].qty=v; drawQuoteCart();
+    });
+  });
+  window.qDel=function(i){ _qcart.splice(i,1); drawQuoteCart(); }
+}
+
+function saveQuotation(){
+  if(!_qcart.length) return alert('No items to save');
+  let custId=document.getElementById('q_c_sel').value, custName='', phone='';
+  if(custId==='new'){ 
+    custName=document.getElementById('q_c_name').value.trim();
+    phone=document.getElementById('q_c_phone').value.trim();
+    if(!custName) return alert('Enter customer name');
+    const list=db.cust; const c={id:'C'+Date.now(), name:custName, phone}; list.push(c); db.cust=list; custId=c.id;
+  } else if(custId==='cash'){
+    custName='Cash'; phone='';
+  } else { 
+    const c=db.cust.find(x=>x.id===custId); custName=c?.name||''; phone=c?.phone||''; 
+  }
+
+  const id = nextQuoteNo();
+  const date = document.getElementById('q_date').value || new Date().toISOString().slice(0,10);
+  const validDays = Math.max(1, Number(document.getElementById('q_valid_days').value||14));
+  const validUntil = new Date(date); validUntil.setDate(validUntil.getDate()+validDays);
+  const items = _qcart.map(l=>({...l}));
+  const totals = items.reduce((a,l)=>{a.sub+=l.qty*l.price; a.disc+=l.qty*l.disc; return a;},{sub:0,disc:0});
+  const grand = totals.sub;
+
+  const s = { id, quoteNo:id, date, validUntil: validUntil.toISOString().slice(0,10), customerId:custId, customerName:custName, phone, items, subTotal: totals.sub+totals.disc, totalDiscount: totals.disc, total: grand, notes: (document.getElementById('q_notes')?.value||'') };
+  const list = db.quotes; list.push(s); db.quotes=list;
+
+  alert('Quotation saved. Quote # '+id);
+  showQuotationView(s);
+}
+
+function renderQuotationList(){
+  const list = db.quotes.slice().sort((a,b)=> b.id - a.id);
+  document.getElementById('content').innerHTML = `
+    <div class="card">
+      <h3>Quotation List</h3>
+      <table class="table">
+        <thead><tr><th>Quote #</th><th>Date</th><th>Customer</th><th>Total</th><th>Valid Until</th><th></th></tr></thead>
+        <tbody>${list.map(q=>`<tr>
+          <td>${q.quoteNo}</td><td>${q.date}</td><td>${q.customerName||''}</td><td style="text-align:right">${formatNumNoRs(q.total)}</td><td>${q.validUntil}</td>
+          <td><button class="btn small" onclick="showQuotationViewId(${q.id})">Open</button></td>
+        </tr>`).join('')}</tbody>
+      </table>
+      <div class="invoice-actions"><button class="btn primary" onclick="renderQuotation()">New Quotation</button></div>
+    </div>
+  `;
+  window.showQuotationViewId = function(id){
+    const q = db.quotes.find(x=>x.id==id); if(q) showQuotationView(q);
+  }
+}
+
+function showQuotationView(s){
+  const set=getSettings();
+  const rows = s.items.map(l=>`<tr><td>${l.sku||''}</td><td>${l.name||''}</td><td style="text-align:right">${l.qty}</td><td style="text-align:right">${formatNumNoRs(l.mrp)}</td><td style="text-align:right">${formatNumNoRs(l.disc)}</td><td style="text-align:right">${formatNumNoRs(l.price)}</td><td style="text-align:right">${formatNumNoRs(l.qty*l.price)}</td></tr>`).join('');
+  document.getElementById('content').innerHTML = `
+    <div class="card">
+      <div class="print-sheet">
+        <div class="q-header">
+          <div class="q-left">
+            ${set.logoDataUrl ? `<img src="${set.logoDataUrl}" style="max-width:140px;height:auto;border-radius:6px"/>` : ''}
+            <div class="q-company">
+              <div class="q-name">${set.companyName||''}</div>
+              <div class="q-meta">${set.address||''} • ${set.phone||''} • ${set.email||''}</div>
+            </div>
+          </div>
+          <div class="q-right">
+            <div><strong>Quotation</strong></div>
+            <div>Quote #: ${s.quoteNo}</div>
+            <div>Date: ${s.date}</div>
+            <div>Valid Until: ${s.validUntil}</div>
+          </div>
+        </div>
+
+        <div class="q-to">
+          <div><strong>To:</strong> ${s.customerName||'N/A'}</div>
+          ${s.phone?`<div><strong>Phone:</strong> ${s.phone}</div>`:''}
+        </div>
+
+        <table class="table q-table">
+          <thead><tr><th>SKU</th><th>Item</th><th style="text-align:right">Qty</th><th style="text-align:right">MRP</th><th style="text-align:right">Discount</th><th style="text-align:right">Unit</th><th style="text-align:right">Total</th></tr></thead>
+          <tbody>${rows}</tbody>
+          <tfoot>
+            <tr><td colspan="5"></td><td>Sub Total</td><td style="text-align:right">${formatNumNoRs(s.subTotal)}</td></tr>
+            <tr><td colspan="5"></td><td>Total Discount</td><td style="text-align:right">${formatNumNoRs(s.totalDiscount)}</td></tr>
+            <tr><td colspan="5"></td><td>Grand Total</td><td style="text-align:right">${formatNumNoRs(s.total)}</td></tr>
+          </tfoot>
+        </table>
+
+        ${s.notes?`<div class="q-notes"><strong>Notes:</strong> ${s.notes}</div>`:''}
+      </div>
+
+      <div class="invoice-actions">
+        <button class="btn" onclick="renderQuotationList()">Back</button>
+        <button class="btn primary" onclick="printQuotation(${s.id})">Print A5</button>
+      </div>
+    </div>
+  `;
+}
+
+function printQuotation(id){
+  const s = db.quotes.find(x=>x.id==id); if(!s) return alert('Not found');
+  const set = getSettings();
+  const rows = s.items.map(l=>`<tr><td>${l.sku||''}</td><td>${l.name||''}</td><td style="text-align:right">${l.qty}</td><td style="text-align:right">${formatNumNoRs(l.mrp)}</td><td style="text-align:right">${formatNumNoRs(l.disc)}</td><td style="text-align:right">${formatNumNoRs(l.price)}</td><td style="text-align:right">${formatNumNoRs(l.qty*l.price)}</td></tr>`).join('');
+  const css = `
+    <style>
+      @page { size: A5; margin: 8mm; }
+      body { font-family: Arial, sans-serif; }
+      h1,h2,h3 { margin: 6px 0; }
+      .q-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+      .q-company { font-size:12px; }
+      table { width:100%; border-collapse: collapse; }
+      th, td { border-bottom:1px solid #ccc; padding:6px; font-size:12px; text-align:left; }
+      tfoot td { font-weight:700; }
+    </style>`;
+  const html = `
+    <div class="q-head">
+      <div>
+        ${set.logoDataUrl?`<img src="${set.logoDataUrl}" style="max-height:60px"/>`:''}
+        <div class="q-company"><div><strong>${set.companyName||''}</strong></div><div>${set.address||''} • ${set.phone||''} • ${set.email||''}</div></div>
+      </div>
+      <div style="text-align:right">
+        <div><strong>Quotation</strong></div>
+        <div>Quote #: ${s.quoteNo}</div>
+        <div>Date: ${s.date}</div>
+        <div>Valid Until: ${s.validUntil}</div>
+      </div>
+    </div>
+    <div style="margin:6px 0"><strong>To:</strong> ${s.customerName||'N/A'} ${s.phone?(' • '+s.phone):''}</div>
+    <table>
+      <thead><tr><th>SKU</th><th>Item</th><th style="text-align:right">Qty</th><th style="text-align:right">MRP</th><th style="text-align:right">Discount</th><th style="text-align:right">Unit</th><th style="text-align:right">Total</th></tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot>
+        <tr><td colspan="5"></td><td>Sub Total</td><td style="text-align:right">${formatNumNoRs(s.subTotal)}</td></tr>
+        <tr><td colspan="5"></td><td>Total Discount</td><td style="text-align:right">${formatNumNoRs(s.totalDiscount)}</td></tr>
+        <tr><td colspan="5"></td><td>Grand Total</td><td style="text-align:right">${formatNumNoRs(s.total)}</td></tr>
+      </tfoot>
+    </table>
+    ${s.notes?`<div style="margin-top:6px"><strong>Notes:</strong> ${s.notes}</div>`:''}
+  `;
+  const w=window.open('','_blank','width=900,height=700');
+  w.document.write('<html><head><title>Quotation</title>'+css+'</head><body>'+html+'</body></html>');
+  w.document.close(); w.focus(); w.print(); w.close();
+}
+
+// === Inventory Edit/Delete functions ===
+window.editInventoryItem = function(id){
+  const item = db.inv.find(x => x.id === id);
+  if(!item) return alert("Item not found");
+  document.getElementById('inv_category').value = item.category || '';
+  document.getElementById('inv_name').value = item.name || '';
+  document.getElementById('inv_sku').value = item.sku || '';
+  document.getElementById('inv_mrp').value = item.mrp || 0;
+  document.getElementById('inv_discount').value = item.discount || 0;
+  document.getElementById('inv_price').value = item.price || 0;
+  document.getElementById('inv_cost').value = item.cost || 0;
+  document.getElementById('inv_qty').value = item.qty || 0;
+
+  // Change Add button to Update
+  const btn = document.getElementById('inv_add');
+  btn.textContent = "Update Item";
+  btn.onclick = function(){
+    item.category = document.getElementById('inv_category').value.trim();
+    item.name = document.getElementById('inv_name').value.trim();
+    item.sku = document.getElementById('inv_sku').value.trim();
+    item.mrp = parseFloat(document.getElementById('inv_mrp').value)||0;
+    item.discount = parseFloat(document.getElementById('inv_discount').value)||0;
+    item.price = parseFloat(document.getElementById('inv_price').value)||0;
+    item.cost = parseFloat(document.getElementById('inv_cost').value)||0;
+    item.qty = parseInt(document.getElementById('inv_qty').value)||0;
+    db.inv = db.inv.map(x => x.id === id ? item : x);
+    alert("✅ Product updated successfully!");
+    show('inventory');
+  };
+};
+
+window.deleteInventoryItem = function(id){
+  if(!confirm("⚠️ Are you sure you want to delete this product?")) return;
+  db.inv = db.inv.filter(x => x.id !== id);
+  alert("🗑️ Product deleted.");
+  show('inventory');
+};
+
+
+// --- Quotation line controls (match Invoice/Inventory buttons) ---
+function editQuotation(i){
+  try{
+    const l = _qcart[i] || {};
+    // Fill back into fields for editing
+    const set = (id, v) => { const el=document.getElementById(id); if(el) el.value = (v ?? ''); };
+    set('q_sku', l.sku || '');
+    set('q_pname', l.name || '');
+    set('q_qty', l.qty || 1);
+    set('q_mrp', l.mrp || 0);
+    set('q_disc', l.disc || 0);
+    set('q_price', l.price || 0);
+    // Remove the line being edited so re-adding won't duplicate
+    _qcart.splice(i,1);
+    drawQuoteCart();
+    const focusEl = document.getElementById('q_pname'); if(focusEl) focusEl.focus();
+  }catch(e){ console.error('editQuotation error', e); }
+}
+function deleteQuotation(i){
+  try{
+    _qcart.splice(i,1);
+    drawQuoteCart();
+  }catch(e){ console.error('deleteQuotation error', e); }
+}
+
+// Clear PO search results initially
+document.addEventListener('DOMContentLoaded', ()=>{
+  const box=document.getElementById('po_results');
+  if(box) box.innerHTML = '';
+});
+
+
+function clearPOMForm(){
+  const ids=['po_no','po_date','po_supplier','po_location','po_contact','po_email','po_whatsapp'];
+  ids.forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  poItems = [];
+  try{ renderItems(); }catch(e){}
+  editingId = null;
+  const saveBtn=document.getElementById('po_save');
+  if(saveBtn) saveBtn.textContent='Save Purchase Order';
+}
+
+// Hook up Clear button
+document.getElementById('po_clear').addEventListener('click', clearPOMForm);
